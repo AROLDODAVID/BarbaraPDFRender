@@ -8,12 +8,10 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Initialize OpenAI
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-// CORS configuration
 const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [
   'http://localhost:5173',
   'https://barbarapdfeditor.net',
@@ -21,7 +19,6 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (mobile apps, curl, etc.)
     if (!origin) return callback(null, true);
     
     if (allowedOrigins.includes(origin)) {
@@ -35,7 +32,6 @@ app.use(cors({
 
 app.use(express.json({ limit: '10mb' }));
 
-// Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ 
     status: 'ok', 
@@ -44,7 +40,6 @@ app.get('/health', (req, res) => {
   });
 });
 
-// AI Tutor endpoint with vision support
 app.post('/api/tutor', async (req, res) => {
   try {
     const { message, conversationHistory = [], selectedText = '', image } = req.body;
@@ -59,7 +54,6 @@ app.post('/api/tutor', async (req, res) => {
       });
     }
 
-    // Build context-aware system prompt
     const systemPrompt = `You are BarbaraIA, an educational AI tutor for K-12 students. Your role is to:
 - Explain concepts clearly and simply
 - Break down complex topics into understandable parts
@@ -74,7 +68,6 @@ ${selectedText ? `The student has selected this text from their PDF: "${selected
 
 Always respond in a friendly, educational manner. If asked to solve a problem, guide the student through the solution rather than just giving the answer.`;
 
-    // Build messages array for OpenAI
     const messages = [
       { role: 'system', content: systemPrompt },
       ...conversationHistory.map(msg => {
@@ -94,7 +87,6 @@ Always respond in a friendly, educational manner. If asked to solve a problem, g
       }),
     ];
 
-    // Add current message
     if (image) {
       messages.push({
         role: 'user',
@@ -110,9 +102,8 @@ Always respond in a friendly, educational manner. If asked to solve a problem, g
       });
     }
 
-    // Call OpenAI API with vision model if image is present
     const completion = await openai.chat.completions.create({
-      model: image ? 'gpt-4o' : 'gpt-4o-mini', // Use gpt-4o for vision, gpt-4o-mini for text-only
+      model: image ? 'gpt-4o' : 'gpt-4o-mini',
       messages: messages,
       temperature: 0.7,
       max_tokens: 500,
@@ -128,7 +119,6 @@ Always respond in a friendly, educational manner. If asked to solve a problem, g
   } catch (error) {
     console.error('OpenAI API Error:', error);
     
-    // Handle specific OpenAI errors
     if (error.status === 401) {
       return res.status(401).json({ error: 'Invalid OpenAI API key' });
     }
@@ -153,5 +143,3 @@ app.listen(PORT, () => {
   console.log(`🔑 OpenAI API Key: ${process.env.OPENAI_API_KEY ? 'Configured ✓' : 'Missing ✗'}`);
   console.log(`🌍 Allowed origins: ${allowedOrigins.join(', ')}`);
 });
-</sg-write>
-</sg-code>
