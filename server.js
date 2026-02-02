@@ -44,13 +44,13 @@ app.get('/health', (req, res) => {
   });
 });
 
-// AI Tutor endpoint
+// AI Tutor endpoint with vision support
 app.post('/api/tutor', async (req, res) => {
   try {
-    const { message, conversationHistory = [], selectedText = '' } = req.body;
+    const { message, conversationHistory = [], selectedText = '', image } = req.body;
 
-    if (!message || message.trim() === '') {
-      return res.status(400).json({ error: 'Message is required' });
+    if ((!message || message.trim() === '') && !image) {
+      return res.status(400).json({ error: 'Message or image is required' });
     }
 
     if (!process.env.OPENAI_API_KEY) {
@@ -60,7 +60,7 @@ app.post('/api/tutor', async (req, res) => {
     }
 
     // Build context-aware system prompt
-    const systemPrompt = `You are an educational AI tutor for K-12 students. Your role is to:
+    const systemPrompt = `You are BarbaraIA, an educational AI tutor for K-12 students. Your role is to:
 - Explain concepts clearly and simply
 - Break down complex topics into understandable parts
 - Provide step-by-step solutions to problems
@@ -68,6 +68,7 @@ app.post('/api/tutor', async (req, res) => {
 - Encourage critical thinking
 - Be patient and supportive
 - Adapt explanations to student level
+- When analyzing images: describe what you see, explain diagrams, solve visual math problems, read handwriting
 
 ${selectedText ? `The student has selected this text from their PDF: "${selectedText}"` : ''}
 
@@ -76,26 +77,52 @@ Always respond in a friendly, educational manner. If asked to solve a problem, g
     // Build messages array for OpenAI
     const messages = [
       { role: 'system', content: systemPrompt },
-      ...conversationHistory.map(msg => ({
-        role: msg.role === 'user' ? 'user' : 'assistant',
-        content: msg.content
-      })),
-      { role: 'user', content: message }
+      ...conversationHistory.map(msg => {
+        if (msg.image) {
+          return {
+            role: msg.role === 'user' ? 'user' : 'assistant',
+            content: [
+              { type: 'text', text: msg.content },
+              { type: 'image_url', image_url: { url: msg.image } }
+            ]
+          };
+        }
+        return {
+          role: msg.role === 'user' ? 'user' : 'assistant',
+          content: msg.content
+        };
+      }),
     ];
 
-    // Call OpenAI API
+    // Add current message
+    if (image) {
+      messages.push({
+        role: 'user',
+        content: [
+          { type: 'text', text: message || 'What do you see in this image?' },
+          { type: 'image_url', image_url: { url: image } }
+        ]
+      });
+    } else {
+      messages.push({
+        role: 'user',
+        content: message
+      });
+    }
+
+    // Call OpenAI API with vision model if image is present
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini', // Cost-effective model (cheaper than gpt-4)
+      model: image ? 'gpt-4o' : 'gpt-4o-mini', // Use gpt-4o for vision, gpt-4o-mini for text-only
       messages: messages,
       temperature: 0.7,
-      max_tokens: 500, // Limit response length to control costs
+      max_tokens: 500,
     });
 
     const response = completion.choices[0].message.content;
 
     res.json({ 
       response,
-      usage: completion.usage // Return token usage for monitoring
+      usage: completion.usage
     });
 
   } catch (error) {
@@ -126,3 +153,5 @@ app.listen(PORT, () => {
   console.log(`🔑 OpenAI API Key: ${process.env.OPENAI_API_KEY ? 'Configured ✓' : 'Missing ✗'}`);
   console.log(`🌍 Allowed origins: ${allowedOrigins.join(', ')}`);
 });
+</sg-write>
+</sg-code>
